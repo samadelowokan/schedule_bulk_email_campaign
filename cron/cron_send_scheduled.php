@@ -5,8 +5,8 @@
  * * * * * * php /cron/cron_send_scheduled.php
 
  */
-
-$db = new PDO('sqlite:' . __DIR__ . '/../db/email_scheduler.sqlite');
+echo (__DIR__);
+$db = new PDO('sqlite:../db/email_scheduler.sqlite');
 
 $now = date('Y-m-d H:i:s');
 $today = date('l'); // Full day name (e.g., Monday)
