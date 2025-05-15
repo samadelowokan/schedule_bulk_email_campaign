@@ -21,7 +21,7 @@ function getCredentialConfiguration($account)
 {
    try {
     $accounts = [
-        "Account1" => [
+        "Trustbook" => [
             "MAIL_HOST" => "mail.trustbook.pro",
             "MAIL_PORT" => 465,
             "MAIL_USERNAME" => "test@trustbook.pro",
