@@ -1,0 +1,13 @@
+{Subject1|Subject2|Subject3} ;
+
+<p>Dear {NAME},</p>
+
+{Excellent|Good|Great|Terrific} news, {USER} has asked a booking question:</p>
+
+<p></i>{QUESTION}</i></p>
+
+<p>Reply with {EMAIL}, by claiming your business: https://trustbook.pro/b/{WEBSITE}</p>
+
+<p>{Warm regards|Best wishes|Best regards|Yours sincerely|Cheers},</p>
+
+<p>Trustpilot</p>
