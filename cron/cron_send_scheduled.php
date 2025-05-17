@@ -1,11 +1,16 @@
 <?php 
 /** SAMUEL ADELOWOKAN
  *  Mail scheduler script to be run via cron job.
+ *  All Campaigns pending will be executed whenever this script is run.
+ * Pending Campaign = any campaign with time < now(), and that has today's day in the 'days' column of the database
+ * Sent mails are stored in the campaign_logs table, so mails are not sent twice
  * 
  * * * * * * php /cron/cron_send_scheduled.php
 
  */
+
 include("../service/emailconfig.php");
+include("../service/randomizer.php");
 
 $db = new PDO('sqlite:../db/email_scheduler.sqlite');
 
@@ -31,9 +36,17 @@ foreach ($campaigns as $campaign) {
             FROM campaign_logs 
             WHERE campaign_id = :id AND strftime('%W', sent_at) = strftime('%W', 'now')
         ");
-        $stmt->bindValue(':id', $campaign['id'], SQLITE3_INTEGER);
-        $row = $stmt->execute()->fetchArray(SQLITE3_ASSOC);
+        $stmt->bindValue(':id', $campaign['id'], PDO::PARAM_INT);
+        $stmt->execute();
+        $row = $stmt->fetch(PDO::FETCH_ASSOC); 
 
+        // Check if fetch succeeded
+        if ($row === false) {
+            error_log("Database query failed: could not fetch row from campaign_logs.");
+            exit("Error fetching campaign data.");
+        }
+
+        // Logic for handling already-sent campaign
         if ($row['sent_count'] > 0) {
             echo "Campaign {$campaign['id']} already sent this week.\n";
             $skipped++;
@@ -41,15 +54,38 @@ foreach ($campaigns as $campaign) {
         }
         
         try {
-            // Read CSV and Template
-            $mobile = trim($campaign['mobile'] ?? '');
-            if ($mobile === '') {
-                throw new Exception("No contact data provided.");
+            // check CSV and txt files
+            $csv = trim($campaign['csv'] ?? '');
+            if ($campaign['csv'] === '') {
+                throw new Exception("No .csv contact data provided.");
             }
-            $lines = preg_split('/\r?\n/', $mobile);
-            $account = $campaign['account'] ?? null;
-            $subjectTpl = $campaign['subject'] ?? '';
-            $messageTpl = $campaign['msg'] ?? '';
+            if ($campaign['template'] === '') {
+                throw new Exception("No .txt template data provided.");
+            }
+            
+            // process contacts .csv file
+            $csvFilename = '../contacts/'.$campaign['csv'];
+            if (file_exists($csvFilename)) {
+                $csvContents = file_get_contents($csvFilename);
+                $csvContents = trim($csvContents);
+                $lines = preg_split('/\r?\n/', $csvContents);
+            } else {
+                throw new Exception("Error in opening .csv contact file.");
+            }
+
+            // process template .txt file
+            $txtFilename = '../templates/'.$campaign['template'];
+            if (file_exists($txtFilename)) {
+                $txtContents = file_get_contents($txtFilename);
+                list($subject, $message) = explode(';', $txtContents, 2); // Split at the first semicolon
+                $subject = trim($subject);
+                $message = trim($message);
+            } else {
+                throw new Exception("Error in opening .txt template file.");
+            }
+
+            $account = $campaign['account'];
+            $subject = $campaign['subject'];
             
             foreach ($lines as $line) {
                 if (trim($line) === '') continue;
@@ -57,40 +93,42 @@ foreach ($campaigns as $campaign) {
                 // Fetch random question
                 $q = getRandomQuestion($c['questionFile']);
         
-                // Render subject & message
-                $subject = renderText($subjectTpl, $c['name'], $c['website'], $q['user'], $q['question']);
-                $msg     = renderText($messageTpl, $c['name'], $c['website'], $q['user'], $q['question']);
+                // Render message
+                // $subject = renderText($subjectTpl, $c['name'], $c['website'], $q['user'], $q['question']);
+                $msg     = renderText($message, $c['name'], $c['email'], $c['website'], $q['user'], $q['question']);
         
                 // Process randomizer
                 $rnd       = new Randomizer();
                 $subject   = $rnd->process($subject);
                 $msg       = $rnd->process($msg);
-        
+
                 // Send email
                 $ok = sendAllEmail($account, $c['email'], $c['name'], $subject, $msg);
                 
                 // Send Email
                 if ($ok) {
-                    echo "Sent to $email\n";
+                    echo "Sent to ".$c['email']."\n";
 
                     // Log the sent email
+                    $now = date('Y-m-d H:i:s');
                     $stmt = $db->prepare("INSERT INTO campaign_logs (campaign_id, email, sent_at) VALUES (:cid, :email, :sent)");
-                    $stmt->bindValue(':cid', $campaign['id'], SQLITE3_INTEGER);
-                    $stmt->bindValue(':email', $email, SQLITE3_TEXT);
-                    $stmt->bindValue(':sent', $now->format('Y-m-d H:i:s'), SQLITE3_TEXT);
+                    $stmt->bindValue(':cid', $campaign['id'], PDO::PARAM_INT);
+                    $stmt->bindValue(':email', $c['email'], PDO::PARAM_STR);
+                    $stmt->bindValue(':sent', $now, PDO::PARAM_STR);
                     $stmt->execute();
 
                     echo json_encode([ 'success'=>(bool)$ok, 'email'=>$c['email'] ]) . PHP_EOL;
                     sleep(1);
                 } else {
-                    echo "Failed to send to $email\n";
+                    echo "Failed to send to ".$c['email']."\n";
                 }
             }
 
             // Update campaign last_sent_date
+            $now = date('Y-m-d H:i:s');
             $stmt = $db->prepare("UPDATE campaigns SET last_sent_date = :date WHERE id = :id");
-            $stmt->bindValue(':date', $now->format('Y-m-d'), SQLITE3_TEXT);
-            $stmt->bindValue(':id', $campaign['id'], SQLITE3_INTEGER);
+            $stmt->bindValue(':date', $now, PDO::PARAM_STR);
+            $stmt->bindValue(':id', $campaign['id'], PDO::PARAM_INT);
             $stmt->execute();
 
         } catch (\Throwable $e) {
@@ -107,13 +145,16 @@ if (($totaltoday == $skipped) || ($totaltoday==0)){
     echo "No scheduled campaign for today. \n";
 }
 
+file_put_contents("cron_log.txt", date("Y-m-d H:i:s") . " - Cron ran successfully\n", FILE_APPEND);
+
+
 /**
  * Replace placeholders in text: {NAME}, {WEBSITE}, {USER}, {QUESTION}
  */
-function renderText($text, $name, $website, $user = '', $question = '') {
+function renderText($text, $name, $email, $website, $user = '', $question = '') {
     return str_replace(
-        ['{NAME}','{WEBSITE}','{USER}','{QUESTION}'], 
-        [ $name ?: '', $website ?: '', $user, $question ], 
+        ['{NAME}', '{EMAIL}', '{WEBSITE}','{USER}','{QUESTION}'], 
+        [ $name ?: '', $email ?: '', $website ?: '', $user, $question ], 
         $text
     );
 }

@@ -1,22 +1,28 @@
-
-/**
-* SAMUEL ADELOWOKAN
-* */
+/** SAMUEL ADELOWOKAN - 
+  */
 $(function () {
+    // Check stored box message and display it
+    const storedMessage = localStorage.getItem("campaignMessage");
+    if (storedMessage) {
+        $('.box-message').html(storedMessage); // show box message
+        localStorage.removeItem("campaignMessage"); // Clear it after showing
+    }
+
     $("form:not('.ajax_off')").submit(async function (e) {
         e.preventDefault();
 
-        var mobile = $('.mobile').val().trim();
+        var csv = $('#csvFileDropdown').val();
         var account = $('.account').val();
         var subject = $('.subject').val();
-        var msg = $('.msg').val();
+        var template = $('#txtFileDropdown').val();
         var days = $('.days:checked').map(function () {
             return this.value.charAt(0).toUpperCase() + this.value.slice(1).toLowerCase();
         }).get().join(',');
         var time = $('.time').val();
+        var id = $('form').attr('data-edit-id') ?? null;
 
-        if (isEmpty(mobile) || isEmpty(account) || isEmpty(msg) || isEmpty(subject) || isEmpty(days) || isEmpty(time)) {
-            alert('The Account, Mobile, Message, Days and Time fields are required');
+        if (isEmpty(csv) || isEmpty(account) || isEmpty(template) || isEmpty(subject) || isEmpty(days) || isEmpty(time)) {
+            alert('The Account, Csv, Message, Days and Time fields are required');
             return;
         }
 
@@ -37,28 +43,32 @@ $(function () {
         // let quantity = mobile.length;
         // j_quantity.text(quantity);
 
-        const result = await saveCampaign(account, days, time, subject, mobile, msg);
-        showMessage(result, boxMessage);
+        let result;
+
+        if (id) {
+            result = await updateCampaign(account, days, time, subject, csv, template, id);
+        } else {
+            result = await saveCampaign(account, days, time, subject, csv, template);
+        }
 
         load.fadeIn(200).css('display', 'none');
         btn.fadeIn(200).css('display', 'flex');
 
+        // store box message to be displayed after page reload
+        if (result && result.success) {
+            localStorage.setItem("campaignMessage", 'Saving Campaign: - <span style="color:green">SUCCESS!</span>');
+        }
+        if (result && !result.success) {
+            localStorage.setItem("campaignMessage", result.message + '<br> <span style="color:red">FAILED!</span>');
+        }
+
+        location.reload(); // reload page to refresh campaigns list
     });
 
-    function showMessage(result, boxMessage) {
-        if (result && result.success) {
-            boxMessage.append('<p>Saving Campaign: - <span style="color:green">SUCCESS!</span></p>');
-        }
-
-        if (result && !result.success) {
-            boxMessage.append(result.message + '<br> <p>Saving Campaign: - <span style="color:red">FAILED!</span></p>');
-        }
-    }
-
-    /** SAMUEL ADELOWOKAN - Function to save campaign into database */
-    async function saveCampaign(account, days, time, subject, mobile, msg) {
+    // Function to save campaign into database
+    async function saveCampaign(account, days, time, subject, csv, template) {
         try {
-            const result = await postData("service/savecampaign.php", { account, days, time, subject, mobile, msg });
+            const result = await postData("service/savecampaign.php", { account, days, time, subject, csv, template });
             return result;
         } catch (error) {
             return false;
@@ -66,9 +76,25 @@ $(function () {
 
     }
 
-    async function sendEmailUser(account, mobile, subject, message) {
+    // Function to update campaign into database */
+    async function updateCampaign(account, days, time, subject, csv, template, id) {
         try {
-            const result = await postData("service/sendemail.php", { account, mobile, subject, message });
+            const result = await postData("service/updatecampaign.php", { account, days, time, subject, csv, template, id });
+            return result;
+        } catch (error) {
+            return false;
+        }
+
+    }
+
+    /** SAMUEL ADELOWOKAN
+     * End Code
+     */
+
+
+    async function sendEmailUser(account, csv, subject, message) {
+        try {
+            const result = await postData("service/sendemail.php", { account, csv, subject, message });
             return result;
         } catch (error) {
             return false;

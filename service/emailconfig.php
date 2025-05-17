@@ -21,7 +21,7 @@ function getCredentialConfiguration($account)
 {
    try {
     $accounts = [
-        "Trustbook" => [
+        "TrustBook" => [
             "MAIL_HOST" => "mail.trustbook.pro",
             "MAIL_PORT" => 465,
             "MAIL_USERNAME" => "test@trustbook.pro",
@@ -49,7 +49,6 @@ function getCredentialConfiguration($account)
 
 function sendAllEmail($account,$toEmail, $toName, $subject, $msg)
 {
-
   try {
     $mail = new PHPMailer(true);
 
@@ -79,6 +78,6 @@ function sendAllEmail($account,$toEmail, $toName, $subject, $msg)
     $mail->send();
     return true;
   } catch (\Throwable $th) {
-    throw new Exception('error');
+    throw new Exception('Error: unable to send mail');
   }
 }

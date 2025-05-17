@@ -12,8 +12,8 @@ $db->exec("CREATE TABLE IF NOT EXISTS campaigns (
     days TEXT NOT NULL,
     time TEXT NOT NULL,
     subject TEXT NOT NULL,
-    mobile TEXT NULL,
-    msg TEXT NULL,
+    csv TEXT NULL,
+    template TEXT NULL,
     last_sent_date TEXT NULL,
     created_at TEXT,
     updated_at TEXT

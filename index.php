@@ -51,7 +51,7 @@ if (isset($_POST['mobile']) && isset($_POST['msg'])) {
 	
 	<div class="form-group">
 		<label for="csvFileDropdown"><b>2. Select CSV</b></label>
-		<select class="form-control" id="csvFileDropdown" onchange="loadCsvFileContent()">
+		<select class="form-control csv" id="csvFileDropdown" name="csv" onchange="loadCsvFileContent()">
 			<option value="" disabled selected>Select a .csv file</option>
 			<!-- Options will be dynamically added here using JavaScript -->
 		</select>
@@ -64,7 +64,7 @@ if (isset($_POST['mobile']) && isset($_POST['msg'])) {
     <div class="col-md-4">
 	<div class="form-group">
 		<label for="txtFileDropdown"><b>3. Select Message</b></label>
-		<select class="form-control" id="txtFileDropdown" onchange="loadTxtFileContent()">
+		<select class="form-control template" id="txtFileDropdown" name="template" onchange="loadTxtFileContent()">
 			<option value="" disabled selected>Select a .txt file</option>
 		</select>
 		<div class="form-text">From /templates folder</div>
@@ -121,7 +121,7 @@ Jack,message.uk+Jack@gmail.com,modelx.chat
 
     <!-- 6. Submit -->
     <div class="col-12">
-	  <button type="submit" class="btn btn-primary ajax_btn">Save Campaign</button>
+	  <button type="submit" class="btn btn-primary ajax_btn" id="submitBtn">Save Campaign</button>
     </div>
   </form>
 
@@ -153,7 +153,8 @@ Jack,message.uk+Jack@gmail.com,modelx.chat
       <th>Account</th>
       <th>Days</th>
       <th>Time</th>
-      <th>CSV/Mobile</th>
+      <th>CSV</th>
+      <th>Template</th>
       <th>Sent/Total</th>
       <th>Actions</th>
     </tr>
@@ -173,7 +174,8 @@ Jack,message.uk+Jack@gmail.com,modelx.chat
         <td><?= htmlspecialchars($campaign['account']) ?></td>
         <td><?= htmlspecialchars($campaign['days']) ?></td>
         <td><?= htmlspecialchars($campaign['time']) ?></td>
-        <td><?= nl2br(htmlspecialchars($campaign['mobile'])) ?></td>
+        <td><?= htmlspecialchars($campaign['csv']) ?></td>
+        <td><?= htmlspecialchars($campaign['template']) ?></td>
         <td><span id="sent-<?= $idx ?>"><?= $sentCount ?></span>/<?= $total ?></td>
         <td>
           <button class="btn btn-sm btn-primary btn-edit" data-idx="<?= $idx ?>" data-id="<?= $campaign['id'] ?>">Edit</button>
@@ -267,7 +269,7 @@ Jack,message.uk+Jack@gmail.com,modelx.chat
 
     /** Begin Code - SAMUEL ADELOWOKAN */
     function deleteCampaign(id) {
-  if (!confirm("Are you sure you want to delete this campaign?")) return;
+    if (!confirm("Are you sure you want to delete this campaign?")) return;
 
   $.ajax({
     url: 'service/deletecampaign.php',
@@ -291,11 +293,10 @@ $(document).ready(function () {
 
     // Fill the form fields with the campaign data
     $('select[name="account"]').val(campaign.account);
-    $('textarea[name="mobile"]').val(campaign.csv || '');  // Assuming csv stored in 'csv'
-    $('input[name="subject"]').val(campaign.subject);
-    $('textarea[name="msg"]').val(campaign.msg);
+    $('select[name="csv"]').val(campaign.csv);
+    $('select[name="template"]').val(campaign.template);
 
-    // Reset all days checkboxes
+    // pick all days checkboxes
     $('.days').prop('checked', false);
     if (campaign.days) {
       campaign.days.split(',').forEach(day => {
@@ -307,6 +308,36 @@ $(document).ready(function () {
 
     // Store campaign id for update
     $('form').attr('data-edit-id', campaign.id);
+
+    // Switch button text
+    document.getElementById('submitBtn').textContent = 'Update Campaign';
+
+    // convert mobile and msg from csv and template
+    updateFileContents('csv', 'contacts');
+    updateFileContents('txt', 'templates');
+
+    function updateFileContents(extension, folder){
+      const extensionDropdown = document.getElementById(extension +'FileDropdown');
+      const extensionPath = folder + '/' + extensionDropdown.value;
+
+      fetch(extensionPath)
+        .then(response => response.text())
+        .then(data => {
+            if (extension === 'txt' ){
+              const parts = data.split(';');
+              if (parts.length >= 2) {
+                 document.getElementById('subject').value = parts[0].trim();
+                 document.getElementById('msg').value = parts[1].trim();
+              } else {
+                console.warn('Invalid template format. Expected "Subject;Message"');
+              }
+            } else if (extension === 'csv') {
+                // Display CSV content in the textarea
+                document.getElementById('fileContentCSV').value = data;
+            }
+        })
+        .catch(error => console.error('Error loading file:', error));
+    }
 
     // Scroll to form
     window.scrollTo({ top: 0, behavior: 'smooth' });

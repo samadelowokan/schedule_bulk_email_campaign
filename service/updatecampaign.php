@@ -30,6 +30,7 @@ $subject = $_POST['subject'] ?? '';
 $template = $_POST['template'] ?? '';
 $csv = $_POST['csv'] ?? null;
 $now = date('Y-m-d H:i:s');
+$id = $_POST['id'];
 
 // echo json_encode(['success' => false, 'message' => $account.','.$days.','.$time.','.$subject.','.$template.','.$csv]);
 // exit;
@@ -42,18 +43,25 @@ if (empty($account) || empty($days) || empty($time) || empty($subject) || empty(
 
 try {
     // Prepare SQL statement
-    $stmt = $db->prepare("INSERT INTO campaigns (account, days, time, subject, csv, template, last_sent_date, created_at, updated_at) 
-                          VALUES (:account, :days, :time, :subject, :csv, :template, NULL, :created_at, :updated_at)");
+    $stmt = $db->prepare("UPDATE campaigns 
+    SET account = :account,
+        days = :days,
+        time = :time,
+        subject = :subject,
+        csv = :csv,
+        template = :template,
+        updated_at = :updated_at
+    WHERE id = :id");
 
     // Bind values
     $stmt->bindParam(':account', $account);
-    $stmt->bindParam(':days', $days); // e.g. "Monday,Wednesday"
-    $stmt->bindParam(':time', $time); // e.g. "10:00"
+    $stmt->bindParam(':days', $days);
+    $stmt->bindParam(':time', $time);
     $stmt->bindParam(':subject', $subject);
     $stmt->bindParam(':csv', $csv);
     $stmt->bindParam(':template', $template);
-    $stmt->bindParam(':created_at', $now);
     $stmt->bindParam(':updated_at', $now);
+    $stmt->bindParam(':id', $id, PDO::PARAM_INT); 
 
     // Execute insert
     $stmt->execute();
